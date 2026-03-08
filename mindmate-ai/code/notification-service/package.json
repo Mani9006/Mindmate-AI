@@ -1,0 +1,69 @@
+{
+  "name": "@mindmate/notification-service",
+  "version": "1.0.0",
+  "description": "MindMate AI Notification Scheduler Service - Bull Queue-based notification system",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:worker": "node dist/worker.js",
+    "start:scheduler": "node dist/scheduler.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev:worker": "ts-node-dev --respawn --transpile-only src/worker.ts",
+    "dev:scheduler": "ts-node-dev --respawn --transpile-only src/scheduler.ts",
+    "lint": "eslint src/**/*.ts",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [
+    "notifications",
+    "bull-queue",
+    "redis",
+    "push-notifications",
+    "mindmate"
+  ],
+  "author": "MindMate AI Team",
+  "license": "MIT",
+  "dependencies": {
+    "bull": "^4.12.0",
+    "bullmq": "^4.15.0",
+    "firebase-admin": "^12.0.0",
+    "twilio": "^4.20.0",
+    "web-push": "^3.6.7",
+    "apn": "^2.2.0",
+    "ioredis": "^5.3.2",
+    "mongoose": "^8.0.0",
+    "node-cron": "^3.0.3",
+    "moment-timezone": "^2.29.4",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "zod": "^3.22.4",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "rate-limiter-flexible": "^4.0.1",
+    "uuid": "^9.0.1",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/web-push": "^3.6.3",
+    "@types/uuid": "^9.0.7",
+    "@types/lodash": "^4.14.202",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.10",
+    "ts-jest": "^29.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

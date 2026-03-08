@@ -1,0 +1,48 @@
+{
+  "name": "@mindmate/analytics-service",
+  "version": "1.0.0",
+  "description": "MindMate AI Analytics Service - Comprehensive mental wellness analytics computation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mental-health",
+    "wellness",
+    "analytics",
+    "mood-tracking",
+    "task-management",
+    "trigger-detection",
+    "progress-tracking",
+    "milestones"
+  ],
+  "author": "MindMate AI Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mindmate-ai/analytics-service.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mindmate-ai/analytics-service/issues"
+  },
+  "homepage": "https://github.com/mindmate-ai/analytics-service#readme"
+}

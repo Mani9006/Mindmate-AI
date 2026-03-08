@@ -1,0 +1,4778 @@
+openapi: 3.0.3
+info:
+  title: MindMate AI API
+  description: |
+    # MindMate AI REST API
+    
+    Production-ready API specification for MindMate AI - An AI-powered mental health support platform.
+    
+    ## Features
+    - **Authentication**: JWT-based authentication with refresh tokens
+    - **AI Therapy Sessions**: Real-time conversational AI therapy
+    - **Mood Tracking**: Daily mood logging and pattern analysis
+    - **Task Management**: Personalized wellness tasks and goals
+    - **Crisis Support**: Emergency resources and immediate assistance
+    - **Progress Analytics**: Insights and streak tracking
+    - **Notifications**: Smart reminders and wellness nudges
+    
+    ## Authentication
+    All protected endpoints require a Bearer token in the Authorization header:
+    ```
+    Authorization: Bearer <jwt_token>
+    ```
+    
+    ## Rate Limits
+    - **Anonymous**: 10 requests/minute
+    - **Authenticated**: 100 requests/minute
+    - **Premium**: 500 requests/minute
+    - **Admin**: 1000 requests/minute
+    
+    ## Error Codes
+    | Code | Description |
+    |------|-------------|
+    | 400 | Bad Request - Invalid input |
+    | 401 | Unauthorized - Invalid or missing token |
+    | 403 | Forbidden - Insufficient permissions |
+    | 404 | Not Found - Resource doesn't exist |
+    | 409 | Conflict - Resource already exists |
+    | 422 | Unprocessable Entity - Validation error |
+    | 429 | Too Many Requests - Rate limit exceeded |
+    | 500 | Internal Server Error |
+  
+  version: 1.0.0
+  contact:
+    name: MindMate AI Support
+    email: api@mindmate.ai
+  license:
+    name: Proprietary
+    url: https://mindmate.ai/terms
+
+servers:
+  - url: https://api.mindmate.ai/v1
+    description: Production server
+  - url: https://staging-api.mindmate.ai/v1
+    description: Staging server
+  - url: http://localhost:8080/v1
+    description: Local development
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Users
+    description: User profile and account management
+  - name: Sessions
+    description: AI therapy session management
+  - name: Messages
+    description: Chat messages within sessions
+  - name: Tasks
+    description: Wellness tasks and goals
+  - name: Mood
+    description: Mood tracking and analytics
+  - name: Notifications
+    description: Push notifications and preferences
+  - name: Progress
+    description: User progress and achievements
+  - name: Crisis
+    description: Crisis support and emergency resources
+  - name: Admin
+    description: Administrative operations
+
+paths:
+  # ==================== AUTHENTICATION ====================
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Create a new user account with email/password
+      operationId: registerUser
+      security: []
+      x-rate-limit: 5/minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT tokens
+      operationId: loginUser
+      security: []
+      x-rate-limit: 10/minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Account suspended or not verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate current access and refresh tokens
+      operationId: logoutUser
+      security:
+        - bearerAuth: []
+      x-rate-limit: 20/minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+                  description: Refresh token to invalidate
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      operationId: refreshToken
+      security: []
+      x-rate-limit: 30/minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: Valid refresh token
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefreshResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      description: Send password reset email to user
+      operationId: forgotPassword
+      security: []
+      x-rate-limit: 3/minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset email sent
+        '404':
+          description: Email not found (for security, still returns 200)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset email sent
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password
+      description: Reset password using token from email
+      operationId: resetPassword
+      security: []
+      x-rate-limit: 5/minute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - new_password
+              properties:
+                token:
+                  type: string
+                  description: Password reset token from email
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  description: New password (min 8 chars, must include uppercase, lowercase, number)
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset successful
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/verify-email:
+    post:
+      tags:
+        - Authentication
+      summary: Verify email address
+      description: Verify user email using verification token
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Email verification token
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Email verified successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/resend-verification:
+    post:
+      tags:
+        - Authentication
+      summary: Resend verification email
+      description: Resend email verification link
+      operationId: resendVerification
+      security:
+        - bearerAuth: []
+      x-rate-limit: 3/hour
+      responses:
+        '200':
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Verification email sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/oauth/{provider}:
+    post:
+      tags:
+        - Authentication
+      summary: OAuth login/register
+      description: Authenticate using OAuth provider (Google, Apple, Facebook)
+      operationId: oauthLogin
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, apple, facebook]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - access_token
+              properties:
+                access_token:
+                  type: string
+                  description: OAuth access token from provider
+                id_token:
+                  type: string
+                  description: ID token (for Apple/Google)
+      responses:
+        '200':
+          description: OAuth authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/mfa/setup:
+    post:
+      tags:
+        - Authentication
+      summary: Setup MFA
+      description: Enable multi-factor authentication
+      operationId: setupMFA
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: MFA setup initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:
+                    type: string
+                    description: TOTP secret for QR code generation
+                  qr_code_url:
+                    type: string
+                    description: QR code data URL
+                  backup_codes:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/mfa/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify MFA code
+      description: Verify MFA code during login
+      operationId: verifyMFA
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - temp_token
+                - code
+              properties:
+                temp_token:
+                  type: string
+                  description: Temporary token from initial login
+                code:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  description: 6-digit MFA code
+      responses:
+        '200':
+          description: MFA verification successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== USERS ====================
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user profile
+      description: Retrieve authenticated user's profile information
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update current user's profile information
+      operationId: updateCurrentUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user account
+      description: Permanently delete user account and all associated data
+      operationId: deleteCurrentUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+                - confirmation
+              properties:
+                password:
+                  type: string
+                  format: password
+                  description: Current password for verification
+                confirmation:
+                  type: string
+                  enum: [DELETE]
+                  description: Type DELETE to confirm
+      responses:
+        '204':
+          description: Account deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Incorrect password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/password:
+    put:
+      tags:
+        - Users
+      summary: Change password
+      description: Change current user's password
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - current_password
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users/me/preferences:
+    get:
+      tags:
+        - Users
+      summary: Get user preferences
+      description: Retrieve user's application preferences
+      operationId: getUserPreferences
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Preferences retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Users
+      summary: Update user preferences
+      description: Update user's application preferences
+      operationId: updateUserPreferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreferences'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/avatar:
+    post:
+      tags:
+        - Users
+      summary: Upload avatar
+      description: Upload user profile picture
+      operationId: uploadAvatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, max 5MB)
+      responses:
+        '200':
+          description: Avatar uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatar_url:
+                    type: string
+                    format: uri
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete avatar
+      description: Remove user profile picture
+      operationId: deleteAvatar
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Avatar deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/subscription:
+    get:
+      tags:
+        - Users
+      summary: Get subscription details
+      description: Retrieve user's subscription information
+      operationId: getSubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/data-export:
+    post:
+      tags:
+        - Users
+      summary: Request data export
+      description: Request GDPR-compliant data export
+      operationId: requestDataExport
+      security:
+        - bearerAuth: []
+      x-rate-limit: 1/day
+      responses:
+        '202':
+          description: Data export request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  export_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [pending, processing, completed, failed]
+                  estimated_completion:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== SESSIONS ====================
+  /sessions:
+    get:
+      tags:
+        - Sessions
+      summary: List user sessions
+      description: Retrieve paginated list of user's therapy sessions
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, completed, archived]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Sessions list retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Sessions
+      summary: Create new session
+      description: Start a new AI therapy session
+      operationId: createSession
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /sessions/{session_id}:
+    get:
+      tags:
+        - Sessions
+      summary: Get session details
+      description: Retrieve detailed information about a specific session
+      operationId: getSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Sessions
+      summary: Update session
+      description: Update session metadata (title, notes, etc.)
+      operationId: updateSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSessionRequest'
+      responses:
+        '200':
+          description: Session updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Sessions
+      summary: Delete session
+      description: Delete a session and all its messages
+      operationId: deleteSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Session deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions/{session_id}/end:
+    post:
+      tags:
+        - Sessions
+      summary: End session
+      description: Mark session as completed and generate summary
+      operationId: endSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session ended successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions/{session_id}/summary:
+    get:
+      tags:
+        - Sessions
+      summary: Get session summary
+      description: Retrieve AI-generated summary of the session
+      operationId: getSessionSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session summary retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions/{session_id}/export:
+    get:
+      tags:
+        - Sessions
+      summary: Export session
+      description: Export session as PDF or text
+      operationId: exportSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [pdf, txt, json]
+            default: pdf
+      responses:
+        '200':
+          description: Session exported
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== MESSAGES ====================
+  /sessions/{session_id}/messages:
+    get:
+      tags:
+        - Messages
+      summary: List session messages
+      description: Retrieve paginated messages from a session
+      operationId: listMessages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: uuid
+            description: Message ID to fetch messages before (for pagination)
+        - name: after
+          in: query
+          schema:
+            type: string
+            format: uuid
+            description: Message ID to fetch messages after
+      responses:
+        '200':
+          description: Messages retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Messages
+      summary: Send message
+      description: Send a message in a session and get AI response
+      operationId: sendMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message sent and AI response received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /sessions/{session_id}/messages/stream:
+    post:
+      tags:
+        - Messages
+      summary: Send message (streaming)
+      description: Send a message and receive AI response as SSE stream
+      operationId: sendMessageStream
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: SSE stream of AI response chunks
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions/{session_id}/messages/{message_id}:
+    get:
+      tags:
+        - Messages
+      summary: Get message
+      description: Retrieve a specific message
+      operationId: getMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Message retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Messages
+      summary: Delete message
+      description: Delete a specific message
+      operationId: deleteMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Message deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions/{session_id}/messages/{message_id}/feedback:
+    post:
+      tags:
+        - Messages
+      summary: Rate AI response
+      description: Provide feedback on AI message (thumbs up/down)
+      operationId: rateMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+              properties:
+                rating:
+                  type: string
+                  enum: [helpful, not_helpful]
+                comment:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Feedback recorded
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== TASKS ====================
+  /tasks:
+    get:
+      tags:
+        - Tasks
+      summary: List tasks
+      description: Retrieve user's wellness tasks
+      operationId: listTasks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, completed, archived]
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [mindfulness, exercise, journaling, social, sleep, nutrition, other]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - name: due_before
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Tasks retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Tasks
+      summary: Create task
+      description: Create a new wellness task
+      operationId: createTask
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /tasks/{task_id}:
+    get:
+      tags:
+        - Tasks
+      summary: Get task
+      description: Retrieve a specific task
+      operationId: getTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Tasks
+      summary: Update task
+      description: Update task details
+      operationId: updateTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Tasks
+      summary: Delete task
+      description: Delete a task
+      operationId: deleteTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Task deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{task_id}/complete:
+    post:
+      tags:
+        - Tasks
+      summary: Complete task
+      description: Mark task as completed
+      operationId: completeTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  maxLength: 1000
+                  description: Completion notes or reflection
+      responses:
+        '200':
+          description: Task completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{task_id}/reopen:
+    post:
+      tags:
+        - Tasks
+      summary: Reopen task
+      description: Reopen a completed task
+      operationId: reopenTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task reopened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/suggestions:
+    get:
+      tags:
+        - Tasks
+      summary: Get task suggestions
+      description: Get AI-generated task suggestions based on user profile and mood
+      operationId: getTaskSuggestions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Task suggestions retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskSuggestion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== MOOD ====================
+  /mood:
+    get:
+      tags:
+        - Mood
+      summary: List mood entries
+      description: Retrieve user's mood history
+      operationId: listMoodEntries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Mood entries retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoodListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Mood
+      summary: Log mood
+      description: Record a new mood entry
+      operationId: logMood
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogMoodRequest'
+      responses:
+        '201':
+          description: Mood logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoodEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /mood/today:
+    get:
+      tags:
+        - Mood
+      summary: Get today's mood
+      description: Retrieve today's mood entry if exists
+      operationId: getTodayMood
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Today's mood retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoodEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No mood entry for today
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mood/{entry_id}:
+    get:
+      tags:
+        - Mood
+      summary: Get mood entry
+      description: Retrieve a specific mood entry
+      operationId: getMoodEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mood entry retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoodEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Mood
+      summary: Update mood entry
+      description: Update a mood entry (within 24 hours of creation)
+      operationId: updateMoodEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMoodRequest'
+      responses:
+        '200':
+          description: Mood entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoodEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Cannot update entry older than 24 hours
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Mood
+      summary: Delete mood entry
+      description: Delete a mood entry
+      operationId: deleteMoodEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Mood entry deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /mood/analytics:
+    get:
+      tags:
+        - Mood
+      summary: Get mood analytics
+      description: Retrieve mood patterns and insights
+      operationId: getMoodAnalytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, 3months, 6months, year]
+            default: month
+      responses:
+        '200':
+          description: Mood analytics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoodAnalytics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /mood/patterns:
+    get:
+      tags:
+        - Mood
+      summary: Get mood patterns
+      description: Retrieve AI-detected mood patterns and triggers
+      operationId: getMoodPatterns
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, 3months, 6months, year]
+            default: month
+      responses:
+        '200':
+          description: Mood patterns retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoodPatterns'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /mood/streak:
+    get:
+      tags:
+        - Mood
+      summary: Get mood logging streak
+      description: Retrieve current and best mood logging streaks
+      operationId: getMoodStreak
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mood streak retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_streak:
+                    type: integer
+                    description: Current consecutive days with mood entries
+                  best_streak:
+                    type: integer
+                    description: Best streak ever achieved
+                  last_logged_date:
+                    type: string
+                    format: date
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== NOTIFICATIONS ====================
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: List notifications
+      description: Retrieve user's notifications
+      operationId: listNotifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: unread_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/{notification_id}:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification
+      description: Retrieve a specific notification
+      operationId: getNotification
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Notifications
+      summary: Delete notification
+      description: Delete a notification
+      operationId: deleteNotification
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Notification deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/{notification_id}/read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark notification as read
+      description: Mark a notification as read
+      operationId: markNotificationRead
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/read-all:
+    post:
+      tags:
+        - Notifications
+      summary: Mark all notifications as read
+      description: Mark all unread notifications as read
+      operationId: markAllNotificationsRead
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  marked_count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/preferences:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification preferences
+      description: Retrieve user's notification preferences
+      operationId: getNotificationPreferences
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Preferences retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Notifications
+      summary: Update notification preferences
+      description: Update notification preferences
+      operationId: updateNotificationPreferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferences'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/push-token:
+    post:
+      tags:
+        - Notifications
+      summary: Register push token
+      description: Register device push notification token
+      operationId: registerPushToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - platform
+              properties:
+                token:
+                  type: string
+                  description: Push notification token from FCM/APNs
+                platform:
+                  type: string
+                  enum: [ios, android, web]
+                device_id:
+                  type: string
+                  description: Unique device identifier
+      responses:
+        '200':
+          description: Token registered
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Notifications
+      summary: Unregister push token
+      description: Unregister device push notification token
+      operationId: unregisterPushToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+      responses:
+        '204':
+          description: Token unregistered
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== PROGRESS ====================
+  /progress:
+    get:
+      tags:
+        - Progress
+      summary: Get overall progress
+      description: Retrieve user's overall wellness progress
+      operationId: getProgress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Progress retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /progress/stats:
+    get:
+      tags:
+        - Progress
+      summary: Get progress statistics
+      description: Retrieve detailed progress statistics
+      operationId: getProgressStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, 3months, 6months, year, all]
+            default: month
+      responses:
+        '200':
+          description: Progress statistics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /progress/streaks:
+    get:
+      tags:
+        - Progress
+      summary: Get all streaks
+      description: Retrieve user's activity streaks
+      operationId: getStreaks
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Streaks retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_streaks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Streak'
+                  best_streaks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Streak'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /progress/achievements:
+    get:
+      tags:
+        - Progress
+      summary: List achievements
+      description: Retrieve user's achievements and badges
+      operationId: listAchievements
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: earned_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Achievements retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AchievementListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /progress/achievements/{achievement_id}:
+    get:
+      tags:
+        - Progress
+      summary: Get achievement details
+      description: Retrieve details of a specific achievement
+      operationId: getAchievement
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: achievement_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Achievement retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Achievement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /progress/insights:
+    get:
+      tags:
+        - Progress
+      summary: Get AI insights
+      description: Retrieve AI-generated wellness insights
+      operationId: getInsights
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month]
+            default: week
+      responses:
+        '200':
+          description: Insights retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Insights'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /progress/weekly-report:
+    get:
+      tags:
+        - Progress
+      summary: Get weekly report
+      description: Retrieve comprehensive weekly wellness report
+      operationId: getWeeklyReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: week_start
+          in: query
+          schema:
+            type: string
+            format: date
+            description: Start date of the week (defaults to current week)
+      responses:
+        '200':
+          description: Weekly report retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== CRISIS ====================
+  /crisis/resources:
+    get:
+      tags:
+        - Crisis
+      summary: Get crisis resources
+      description: Retrieve list of crisis support resources
+      operationId: getCrisisResources
+      security: []
+      parameters:
+        - name: country
+          in: query
+          schema:
+            type: string
+            default: US
+          description: ISO country code for localized resources
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, suicide, abuse, substance, general]
+            default: all
+      responses:
+        '200':
+          description: Crisis resources retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrisisResources'
+
+  /crisis/alert:
+    post:
+      tags:
+        - Crisis
+      summary: Send crisis alert
+      description: Send crisis alert to emergency contacts (requires confirmation)
+      operationId: sendCrisisAlert
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - confirmed
+              properties:
+                type:
+                  type: string
+                  enum: [emergency_contact, crisis_line, location_share]
+                confirmed:
+                  type: boolean
+                  description: User confirmation (must be true)
+                message:
+                  type: string
+                  maxLength: 500
+                  description: Optional message to include
+                location:
+                  type: object
+                  properties:
+                    latitude:
+                      type: number
+                    longitude:
+                      type: number
+      responses:
+        '200':
+          description: Alert sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alert_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [sent, pending]
+                  recipients:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          description: Confirmation required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /crisis/emergency-contacts:
+    get:
+      tags:
+        - Crisis
+      summary: Get emergency contacts
+      description: Retrieve user's emergency contacts
+      operationId: getEmergencyContacts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Emergency contacts retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contacts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmergencyContact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Crisis
+      summary: Add emergency contact
+      description: Add a new emergency contact
+      operationId: addEmergencyContact
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmergencyContactRequest'
+      responses:
+        '201':
+          description: Contact added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmergencyContact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /crisis/emergency-contacts/{contact_id}:
+    get:
+      tags:
+        - Crisis
+      summary: Get emergency contact
+      description: Retrieve a specific emergency contact
+      operationId: getEmergencyContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmergencyContact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Crisis
+      summary: Update emergency contact
+      description: Update emergency contact details
+      operationId: updateEmergencyContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmergencyContactRequest'
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmergencyContact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Crisis
+      summary: Delete emergency contact
+      description: Delete an emergency contact
+      operationId: deleteEmergencyContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contact_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Contact deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /crisis/check-in:
+    post:
+      tags:
+        - Crisis
+      summary: Crisis check-in
+      description: Submit a crisis check-in response
+      operationId: crisisCheckIn
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - responses
+              properties:
+                responses:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      question_id:
+                        type: string
+                      answer:
+                        type: string
+      responses:
+        '200':
+          description: Check-in processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  risk_level:
+                    type: string
+                    enum: [none, low, moderate, high, severe]
+                  recommendations:
+                    type: array
+                    items:
+                      type: string
+                  resources:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CrisisResource'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== ADMIN ====================
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      summary: List all users
+      description: Retrieve paginated list of all users (admin only)
+      operationId: adminListUsers
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended, pending_verification]
+        - name: subscription_tier
+          in: query
+          schema:
+            type: string
+            enum: [free, premium, enterprise]
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by email or name
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 500
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Users list retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{user_id}:
+    get:
+      tags:
+        - Admin
+      summary: Get user details
+      description: Retrieve detailed user information (admin only)
+      operationId: adminGetUser
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Admin
+      summary: Update user
+      description: Update user account (admin only)
+      operationId: adminUpdateUser
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{user_id}/suspend:
+    post:
+      tags:
+        - Admin
+      summary: Suspend user
+      description: Suspend a user account (admin only)
+      operationId: adminSuspendUser
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                duration_days:
+                  type: integer
+                  description: Suspension duration (null for indefinite)
+      responses:
+        '200':
+          description: User suspended
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{user_id}/unsuspend:
+    post:
+      tags:
+        - Admin
+      summary: Unsuspend user
+      description: Remove suspension from user account (admin only)
+      operationId: adminUnsuspendUser
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User unsuspended
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/analytics:
+    get:
+      tags:
+        - Admin
+      summary: Get platform analytics
+      description: Retrieve platform-wide analytics (admin only)
+      operationId: adminGetAnalytics
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month, year]
+            default: day
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Analytics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAnalytics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/sessions:
+    get:
+      tags:
+        - Admin
+      summary: List all sessions
+      description: Retrieve all therapy sessions (admin only)
+      operationId: adminListSessions
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, completed, flagged]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Sessions retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSessionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/flagged-content:
+    get:
+      tags:
+        - Admin
+      summary: List flagged content
+      description: Retrieve flagged content for review (admin only)
+      operationId: adminListFlaggedContent
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, reviewed, dismissed]
+            default: pending
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [message, session, user]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Flagged content retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlaggedContentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/flagged-content/{flag_id}:
+    patch:
+      tags:
+        - Admin
+      summary: Update flagged content
+      description: Review and update flagged content status (admin only)
+      operationId: adminUpdateFlaggedContent
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [reviewed, dismissed, escalated]
+                notes:
+                  type: string
+                  maxLength: 1000
+                action_taken:
+                  type: string
+                  enum: [none, warning, suspension, content_removed]
+      responses:
+        '200':
+          description: Flagged content updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/system/health:
+    get:
+      tags:
+        - Admin
+      summary: System health check
+      description: Get system health status (admin only)
+      operationId: adminSystemHealth
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      responses:
+        '200':
+          description: System health retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemHealth'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/system/config:
+    get:
+      tags:
+        - Admin
+      summary: Get system configuration
+      description: Retrieve system configuration (admin only)
+      operationId: adminGetConfig
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      responses:
+        '200':
+          description: Configuration retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    patch:
+      tags:
+        - Admin
+      summary: Update system configuration
+      description: Update system configuration (admin only)
+      operationId: adminUpdateConfig
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemConfig'
+      responses:
+        '200':
+          description: Configuration updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/announcements:
+    get:
+      tags:
+        - Admin
+      summary: List announcements
+      description: Retrieve system announcements (admin only)
+      operationId: adminListAnnouncements
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      parameters:
+        - name: active_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Announcements retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  announcements:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Announcement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Admin
+      summary: Create announcement
+      description: Create a new system announcement (admin only)
+      operationId: adminCreateAnnouncement
+      security:
+        - bearerAuth: []
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnouncementRequest'
+      responses:
+        '201':
+          description: Announcement created
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== HEALTH & UTILS ====================
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Basic health check endpoint
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded]
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /version:
+    get:
+      tags:
+        - System
+      summary: Get API version
+      description: Retrieve current API version information
+      operationId: getVersion
+      security: []
+      responses:
+        '200':
+          description: Version information retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                  build:
+                    type: string
+                  environment:
+                    type: string
+                    enum: [production, staging, development]
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login/refresh endpoints
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: bad_request
+            message: Invalid request parameters
+            code: 400
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: unauthorized
+            message: Invalid or missing authentication token
+            code: 401
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: forbidden
+            message: Insufficient permissions to access this resource
+            code: 403
+
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: not_found
+            message: Requested resource not found
+            code: 404
+
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: conflict
+            message: Resource already exists
+            code: 409
+
+    ValidationError:
+      description: Validation Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+
+    RateLimitExceeded:
+      description: Rate Limit Exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per window
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in current window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when the rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: rate_limit_exceeded
+            message: Too many requests, please try again later
+            code: 429
+            retry_after: 60
+
+  schemas:
+    # ==================== ERROR SCHEMAS ====================
+    Error:
+      type: object
+      required:
+        - error
+        - message
+        - code
+      properties:
+        error:
+          type: string
+          description: Error type identifier
+        message:
+          type: string
+          description: Human-readable error message
+        code:
+          type: integer
+          description: HTTP status code
+        details:
+          type: object
+          description: Additional error details
+        request_id:
+          type: string
+          description: Unique request ID for debugging
+
+    ValidationError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            field_errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+                  code:
+                    type: string
+
+    # ==================== AUTH SCHEMAS ====================
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: Must contain at least one uppercase, one lowercase, one number
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+        timezone:
+          type: string
+          default: UTC
+        referral_code:
+          type: string
+          description: Optional referral code
+        marketing_consent:
+          type: boolean
+          default: false
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        device_info:
+          type: object
+          properties:
+            device_id:
+              type: string
+            platform:
+              type: string
+              enum: [ios, android, web]
+            app_version:
+              type: string
+
+    AuthResponse:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - user
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (expires in 15 minutes)
+        refresh_token:
+          type: string
+          description: Refresh token (expires in 30 days)
+        expires_in:
+          type: integer
+          description: Access token expiration time in seconds
+          default: 900
+        token_type:
+          type: string
+          default: Bearer
+        user:
+          $ref: '#/components/schemas/UserProfile'
+        mfa_required:
+          type: boolean
+          default: false
+        temp_token:
+          type: string
+          description: Temporary token when MFA is required
+
+    TokenRefreshResponse:
+      type: object
+      required:
+        - access_token
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+          description: New refresh token (rotated)
+        expires_in:
+          type: integer
+          default: 900
+
+    # ==================== USER SCHEMAS ====================
+    UserProfile:
+      type: object
+      required:
+        - id
+        - email
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+        date_of_birth:
+          type: string
+          format: date
+        timezone:
+          type: string
+        email_verified:
+          type: boolean
+        mfa_enabled:
+          type: boolean
+        subscription_tier:
+          type: string
+          enum: [free, premium, enterprise]
+        subscription_status:
+          type: string
+          enum: [active, cancelled, expired, pending]
+        onboarding_completed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type: string
+          format: date-time
+        account_status:
+          type: string
+          enum: [active, suspended, pending_deletion]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+        timezone:
+          type: string
+
+    UserPreferences:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum: [light, dark, auto]
+          default: auto
+        language:
+          type: string
+          default: en
+        ai_personality:
+          type: string
+          enum: [empathetic, professional, friendly, motivational]
+          default: empathetic
+        session_reminders:
+          type: boolean
+          default: true
+        mood_reminders:
+          type: boolean
+          default: true
+        task_reminders:
+          type: boolean
+          default: true
+        reminder_time:
+          type: string
+          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+          default: '09:00'
+        privacy_settings:
+          type: object
+          properties:
+            share_analytics:
+              type: boolean
+              default: true
+            allow_ai_training:
+              type: boolean
+              default: false
+        notification_settings:
+          type: object
+          properties:
+            push_enabled:
+              type: boolean
+              default: true
+            email_enabled:
+              type: boolean
+              default: true
+            sms_enabled:
+              type: boolean
+              default: false
+
+    Subscription:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum: [free, premium, enterprise]
+        status:
+          type: string
+          enum: [active, cancelled, expired, pending]
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        cancel_at_period_end:
+          type: boolean
+        payment_method:
+          type: object
+          properties:
+            type:
+              type: string
+            last_four:
+              type: string
+            expiry_month:
+              type: integer
+            expiry_year:
+              type: integer
+        features:
+          type: array
+          items:
+            type: string
+
+    # ==================== SESSION SCHEMAS ====================
+    Session:
+      type: object
+      required:
+        - id
+        - user_id
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 200
+        status:
+          type: string
+          enum: [active, completed, archived]
+        session_type:
+          type: string
+          enum: [general, guided, crisis, check_in]
+          default: general
+        message_count:
+          type: integer
+        duration_seconds:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+        ai_model:
+          type: string
+
+    SessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Session'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/Message'
+            summary:
+              type: string
+            key_topics:
+              type: array
+              items:
+                type: string
+            sentiment_trend:
+              type: string
+              enum: [improving, stable, declining]
+
+    CreateSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        session_type:
+          type: string
+          enum: [general, guided, crisis, check_in]
+          default: general
+        initial_context:
+          type: string
+          maxLength: 1000
+          description: Initial context or concern to share with AI
+
+    UpdateSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        notes:
+          type: string
+          maxLength: 2000
+          description: Private notes about the session
+
+    SessionSummary:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+          description: AI-generated session summary
+        key_insights:
+          type: array
+          items:
+            type: string
+        action_items:
+          type: array
+          items:
+            type: string
+        mood_assessment:
+          type: string
+        recommended_resources:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              type:
+                type: string
+              url:
+                type: string
+
+    SessionListResponse:
+      type: object
+      required:
+        - sessions
+        - total
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    # ==================== MESSAGE SCHEMAS ====================
+    Message:
+      type: object
+      required:
+        - id
+        - session_id
+        - role
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        content_type:
+          type: string
+          enum: [text, image, audio, file]
+          default: text
+        metadata:
+          type: object
+          properties:
+            sentiment:
+              type: string
+              enum: [positive, neutral, negative]
+            confidence:
+              type: number
+            detected_intent:
+              type: string
+        feedback:
+          type: object
+          properties:
+            rating:
+              type: string
+              enum: [helpful, not_helpful]
+            comment:
+              type: string
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type: string
+          format: date-time
+
+    SendMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          maxLength: 4000
+        content_type:
+          type: string
+          enum: [text, image, audio]
+          default: text
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              url:
+                type: string
+              name:
+                type: string
+
+    MessageResponse:
+      type: object
+      required:
+        - user_message
+        - assistant_message
+      properties:
+        user_message:
+          $ref: '#/components/schemas/Message'
+        assistant_message:
+          $ref: '#/components/schemas/Message'
+        suggested_responses:
+          type: array
+          items:
+            type: string
+        resources:
+          type: array
+          items:
+            type: object
+
+    MessageListResponse:
+      type: object
+      required:
+        - messages
+        - total
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        total:
+          type: integer
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+
+    # ==================== TASK SCHEMAS ====================
+    Task:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        category:
+          type: string
+          enum: [mindfulness, exercise, journaling, social, sleep, nutrition, other]
+        priority:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+        status:
+          type: string
+          enum: [pending, in_progress, completed, archived]
+        due_date:
+          type: string
+          format: date-time
+        reminder_at:
+          type: string
+          format: date-time
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
+          default: none
+        estimated_minutes:
+          type: integer
+        completed_at:
+          type: string
+          format: date-time
+        completion_notes:
+          type: string
+        source:
+          type: string
+          enum: [user, ai_suggested, therapist, system]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        category:
+          type: string
+          enum: [mindfulness, exercise, journaling, social, sleep, nutrition, other]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        due_date:
+          type: string
+          format: date-time
+        reminder_at:
+          type: string
+          format: date-time
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
+        estimated_minutes:
+          type: integer
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        category:
+          type: string
+          enum: [mindfulness, exercise, journaling, social, sleep, nutrition, other]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        due_date:
+          type: string
+          format: date-time
+        reminder_at:
+          type: string
+          format: date-time
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
+        estimated_minutes:
+          type: integer
+
+    TaskSuggestion:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        priority:
+          type: string
+        reason:
+          type: string
+          description: Why this task is suggested
+
+    TaskListResponse:
+      type: object
+      required:
+        - tasks
+        - total
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        total:
+          type: integer
+        pending_count:
+          type: integer
+        completed_today:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    # ==================== MOOD SCHEMAS ====================
+    MoodEntry:
+      type: object
+      required:
+        - id
+        - user_id
+        - mood_score
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        mood_score:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: 1 = Very low, 10 = Excellent
+        mood_label:
+          type: string
+          enum: [terrible, bad, okay, good, great]
+        emotions:
+          type: array
+          items:
+            type: string
+            enum: [happy, sad, anxious, angry, calm, excited, tired, stressed, grateful, frustrated, hopeful, lonely]
+        notes:
+          type: string
+          maxLength: 2000
+        triggers:
+          type: array
+          items:
+            type: string
+        activities:
+          type: array
+          items:
+            type: string
+            enum: [work, exercise, social, sleep, eating, meditation, hobby, family, outdoors, screen_time]
+        sleep_hours:
+          type: number
+          minimum: 0
+          maximum: 24
+        energy_level:
+          type: integer
+          minimum: 1
+          maximum: 10
+        created_at:
+          type: string
+          format: date-time
+        logged_date:
+          type: string
+          format: date
+
+    LogMoodRequest:
+      type: object
+      required:
+        - mood_score
+      properties:
+        mood_score:
+          type: integer
+          minimum: 1
+          maximum: 10
+        emotions:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+          maxLength: 2000
+        triggers:
+          type: array
+          items:
+            type: string
+        activities:
+          type: array
+          items:
+            type: string
+        sleep_hours:
+          type: number
+        energy_level:
+          type: integer
+          minimum: 1
+          maximum: 10
+
+    UpdateMoodRequest:
+      type: object
+      properties:
+        mood_score:
+          type: integer
+          minimum: 1
+          maximum: 10
+        emotions:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+          maxLength: 2000
+        triggers:
+          type: array
+          items:
+            type: string
+        activities:
+          type: array
+          items:
+            type: string
+        sleep_hours:
+          type: number
+        energy_level:
+          type: integer
+
+    MoodListResponse:
+      type: object
+      required:
+        - entries
+        - total
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/MoodEntry'
+        total:
+          type: integer
+        average_score:
+          type: number
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    MoodAnalytics:
+      type: object
+      properties:
+        period:
+          type: string
+        average_score:
+          type: number
+        highest_score:
+          type: integer
+        lowest_score:
+          type: integer
+        total_entries:
+          type: integer
+        trend:
+          type: string
+          enum: [improving, declining, stable, fluctuating]
+        daily_averages:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              average_score:
+                type: number
+              entry_count:
+                type: integer
+        common_emotions:
+          type: array
+          items:
+            type: object
+            properties:
+              emotion:
+                type: string
+              count:
+                type: integer
+              percentage:
+                type: number
+        common_triggers:
+          type: array
+          items:
+            type: object
+            properties:
+              trigger:
+                type: string
+              count:
+                type: integer
+
+    MoodPatterns:
+      type: object
+      properties:
+        patterns:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [time_of_day, day_of_week, activity_correlation, trigger_correlation]
+              description:
+                type: string
+              confidence:
+                type: number
+              recommendation:
+                type: string
+        insights:
+          type: array
+          items:
+            type: string
+
+    # ==================== NOTIFICATION SCHEMAS ====================
+    Notification:
+      type: object
+      required:
+        - id
+        - user_id
+        - type
+        - title
+        - read
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [session_reminder, mood_reminder, task_reminder, achievement, insight, system, crisis]
+        title:
+          type: string
+        body:
+          type: string
+        data:
+          type: object
+          description: Additional payload data
+        read:
+          type: boolean
+        read_at:
+          type: string
+          format: date-time
+        action_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    NotificationListResponse:
+      type: object
+      required:
+        - notifications
+        - total
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        total:
+          type: integer
+        unread_count:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    NotificationPreferences:
+      type: object
+      properties:
+        push_enabled:
+          type: boolean
+          default: true
+        email_enabled:
+          type: boolean
+          default: true
+        sms_enabled:
+          type: boolean
+          default: false
+        quiet_hours_start:
+          type: string
+          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+        quiet_hours_end:
+          type: string
+          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+        types:
+          type: object
+          properties:
+            session_reminder:
+              type: boolean
+              default: true
+            mood_reminder:
+              type: boolean
+              default: true
+            task_reminder:
+              type: boolean
+              default: true
+            achievement:
+              type: boolean
+              default: true
+            insight:
+              type: boolean
+              default: true
+            system:
+              type: boolean
+              default: true
+
+    # ==================== PROGRESS SCHEMAS ====================
+    ProgressOverview:
+      type: object
+      properties:
+        total_sessions:
+          type: integer
+        total_messages:
+          type: integer
+        total_tasks_completed:
+          type: integer
+        mood_entries_count:
+          type: integer
+        current_streak_days:
+          type: integer
+        best_streak_days:
+          type: integer
+        achievements_count:
+          type: integer
+        joined_at:
+          type: string
+          format: date-time
+        wellness_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    ProgressStats:
+      type: object
+      properties:
+        period:
+          type: string
+        sessions_count:
+          type: integer
+        messages_count:
+          type: integer
+        tasks_completed:
+          type: integer
+        mood_entries:
+          type: integer
+        average_mood:
+          type: number
+        active_days:
+          type: integer
+        weekly_comparison:
+          type: object
+          properties:
+            sessions_change:
+              type: number
+            mood_change:
+              type: number
+            tasks_change:
+              type: number
+
+    Streak:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [mood_logging, session, task_completion]
+        current_count:
+          type: integer
+        best_count:
+          type: integer
+        last_activity:
+          type: string
+          format: date-time
+
+    Achievement:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - earned
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        icon_url:
+          type: string
+        category:
+          type: string
+          enum: [sessions, mood, tasks, streak, social, special]
+        tier:
+          type: string
+          enum: [bronze, silver, gold, platinum]
+        earned:
+          type: boolean
+        earned_at:
+          type: string
+          format: date-time
+        progress:
+          type: object
+          properties:
+            current:
+              type: integer
+            target:
+              type: integer
+            percentage:
+              type: number
+
+    AchievementListResponse:
+      type: object
+      properties:
+        achievements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Achievement'
+        earned_count:
+          type: integer
+        total_count:
+          type: integer
+        recent_achievements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Achievement'
+
+    Insights:
+      type: object
+      properties:
+        period:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        summary:
+          type: string
+        key_insights:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              insight:
+                type: string
+              recommendation:
+                type: string
+              confidence:
+                type: number
+        trends:
+          type: array
+          items:
+            type: object
+            properties:
+              metric:
+                type: string
+              direction:
+                type: string
+                enum: [up, down, stable]
+              percentage_change:
+                type: number
+
+    WeeklyReport:
+      type: object
+      properties:
+        week_start:
+          type: string
+          format: date
+        week_end:
+          type: string
+          format: date
+        summary:
+          type: string
+        mood_summary:
+          type: object
+          properties:
+            average_score:
+              type: number
+            entries_count:
+              type: integer
+            trend:
+              type: string
+        sessions_summary:
+          type: object
+          properties:
+            count:
+              type: integer
+            total_duration:
+              type: integer
+            key_topics:
+              type: array
+              items:
+                type: string
+        tasks_summary:
+          type: object
+          properties:
+            completed:
+              type: integer
+            pending:
+              type: integer
+            completion_rate:
+              type: number
+        highlights:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    # ==================== CRISIS SCHEMAS ====================
+    CrisisResource:
+      type: object
+      required:
+        - id
+        - name
+        - type
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [hotline, text_line, chat, website, app]
+        phone:
+          type: string
+        text_number:
+          type: string
+        website:
+          type: string
+        description:
+          type: string
+        available_24_7:
+          type: boolean
+        languages:
+          type: array
+          items:
+            type: string
+        specialties:
+          type: array
+          items:
+            type: string
+            enum: [suicide, abuse, substance, lgbtq, youth, veteran, general]
+
+    CrisisResources:
+      type: object
+      properties:
+        emergency_number:
+          type: string
+          description: Local emergency number (e.g., 911, 112)
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrisisResource'
+        disclaimer:
+          type: string
+
+    EmergencyContact:
+      type: object
+      required:
+        - id
+        - name
+        - relationship
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        relationship:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        is_primary:
+          type: boolean
+        notify_on_crisis:
+          type: boolean
+          default: true
+        notify_on_check_in:
+          type: boolean
+          default: false
+        created_at:
+          type: string
+          format: date-time
+
+    EmergencyContactRequest:
+      type: object
+      required:
+        - name
+        - relationship
+      properties:
+        name:
+          type: string
+        relationship:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        is_primary:
+          type: boolean
+        notify_on_crisis:
+          type: boolean
+        notify_on_check_in:
+          type: boolean
+
+    # ==================== ADMIN SCHEMAS ====================
+    AdminUserListResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserSummary'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    AdminUserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        subscription_tier:
+          type: string
+        account_status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type: string
+          format: date-time
+        session_count:
+          type: integer
+
+    AdminUserDetail:
+      allOf:
+        - $ref: '#/components/schemas/UserProfile'
+        - type: object
+          properties:
+            sessions_count:
+              type: integer
+            messages_count:
+              type: integer
+            mood_entries_count:
+              type: integer
+            tasks_count:
+              type: integer
+            login_history:
+              type: array
+              items:
+                type: object
+                properties:
+                  timestamp:
+                    type: string
+                    format: date-time
+                  ip_address:
+                    type: string
+                  device:
+                    type: string
+            admin_notes:
+              type: string
+
+    AdminUpdateUserRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        subscription_tier:
+          type: string
+          enum: [free, premium, enterprise]
+        account_status:
+          type: string
+          enum: [active, suspended, pending_deletion]
+        admin_notes:
+          type: string
+
+    AdminAnalytics:
+      type: object
+      properties:
+        period:
+          type: string
+        total_users:
+          type: integer
+        new_users:
+          type: integer
+        active_users:
+          type: integer
+        total_sessions:
+          type: integer
+        total_messages:
+          type: integer
+        average_session_duration:
+          type: number
+        mood_entries_count:
+          type: integer
+        tasks_created:
+          type: integer
+        tasks_completed:
+          type: integer
+        subscription_breakdown:
+          type: object
+          properties:
+            free:
+              type: integer
+            premium:
+              type: integer
+            enterprise:
+              type: integer
+        daily_stats:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              new_users:
+                type: integer
+              active_users:
+                type: integer
+              sessions:
+                type: integer
+
+    AdminSessionListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminSession'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    AdminSession:
+      allOf:
+        - $ref: '#/components/schemas/Session'
+        - type: object
+          properties:
+            user_email:
+              type: string
+            user_name:
+              type: string
+            flagged:
+              type: boolean
+            flag_reason:
+              type: string
+
+    FlaggedContentListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlaggedContent'
+        total:
+          type: integer
+        pending_count:
+          type: integer
+
+    FlaggedContent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [message, session, user]
+        content_id:
+          type: string
+        user_id:
+          type: string
+        user_email:
+          type: string
+        reason:
+          type: string
+        flagged_by:
+          type: string
+          enum: [system, ai, user, admin]
+        status:
+          type: string
+          enum: [pending, reviewed, dismissed, escalated]
+        created_at:
+          type: string
+          format: date-time
+        reviewed_at:
+          type: string
+          format: date-time
+        reviewed_by:
+          type: string
+        notes:
+          type: string
+
+    SystemHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+                enum: [healthy, degraded, unhealthy]
+              latency_ms:
+                type: integer
+              last_check:
+                type: string
+                format: date-time
+        database:
+          type: object
+          properties:
+            status:
+              type: string
+            connection_pool:
+              type: object
+              properties:
+                active:
+                  type: integer
+                idle:
+                  type: integer
+                max:
+                  type: integer
+        ai_service:
+          type: object
+          properties:
+            status:
+              type: string
+            queue_length:
+              type: integer
+            average_response_time_ms:
+              type: integer
+
+    SystemConfig:
+      type: object
+      properties:
+        maintenance_mode:
+          type: boolean
+        registration_enabled:
+          type: boolean
+        max_sessions_per_user:
+          type: integer
+        max_messages_per_session:
+          type: integer
+        ai_model:
+          type: string
+        rate_limits:
+          type: object
+          properties:
+            anonymous:
+              type: object
+              properties:
+                requests_per_minute:
+                  type: integer
+            authenticated:
+              type: object
+              properties:
+                requests_per_minute:
+                  type: integer
+            premium:
+              type: object
+              properties:
+                requests_per_minute:
+                  type: integer
+        features:
+          type: object
+          properties:
+            mood_tracking:
+              type: boolean
+            task_management:
+              type: boolean
+            crisis_support:
+              type: boolean
+            progress_analytics:
+              type: boolean
+            achievements:
+              type: boolean
+
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [info, warning, feature, maintenance]
+        target_audience:
+          type: string
+          enum: [all, free, premium, admin]
+        active:
+          type: boolean
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CreateAnnouncementRequest:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [info, warning, feature, maintenance]
+          default: info
+        target_audience:
+          type: string
+          enum: [all, free, premium, admin]
+          default: all
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+
+# ==================== WEBHOOKS (Future) ====================
+webhooks:
+  moodLogged:
+    post:
+      summary: Mood logged webhook
+      description: Triggered when a user logs their mood
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                mood_entry:
+                  $ref: '#/components/schemas/MoodEntry'
+                timestamp:
+                  type: string
+                  format: date-time
+
+  sessionCompleted:
+    post:
+      summary: Session completed webhook
+      description: Triggered when a therapy session is completed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                session:
+                  $ref: '#/components/schemas/Session'
+                summary:
+                  $ref: '#/components/schemas/SessionSummary'
+                timestamp:
+                  type: string
+                  format: date-time
+
+  achievementEarned:
+    post:
+      summary: Achievement earned webhook
+      description: Triggered when a user earns an achievement
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                achievement:
+                  $ref: '#/components/schemas/Achievement'
+                timestamp:
+                  type: string
+                  format: date-time
+
+  crisisAlert:
+    post:
+      summary: Crisis alert webhook
+      description: Triggered when a potential crisis is detected
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                alert_type:
+                  type: string
+                  enum: [high_risk_detected, self_harm_keywords, crisis_check_in]
+                severity:
+                  type: string
+                  enum: [low, medium, high, critical]
+                context:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Webhook processed successfully

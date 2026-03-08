@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # Redis for Bull queues
+  redis:
+    image: redis:7-alpine
+    container_name: mindmate-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # MongoDB for data persistence
+  mongodb:
+    image: mongo:6
+    container_name: mindmate-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: mindmate_notifications
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: mindmate-notification-api
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://mongodb:27017/mindmate_notifications
+      # Add other environment variables from .env
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    command: ["node", "dist/index.js"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Worker Process
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: mindmate-notification-worker
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://mongodb:27017/mindmate_notifications
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    deploy:
+      replicas: 2  # Scale workers as needed
+
+  # Scheduler Process
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: mindmate-notification-scheduler
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      MONGODB_URI: mongodb://mongodb:27017/mindmate_notifications
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    command: ["node", "dist/scheduler.js"]
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  mongodb-data:
+
+networks:
+  default:
+    name: mindmate-network

@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+log/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Firebase credentials
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+
+# Apple Push certificates
+*.p8
+*.p12
+*.pem
+
+# Twilio credentials (if stored as files)
+twilio-credentials.json
+
+# Redis dump
+*.rdb
+*.aof
+
+# MongoDB data (if using local)
+data/

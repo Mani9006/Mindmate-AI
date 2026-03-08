@@ -1,0 +1,85 @@
+# MindMate AI Service - Docker Compose
+# Local development and testing setup
+
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - pinecone-mock
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - mindmate-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - mindmate-network
+    restart: unless-stopped
+
+  # Mock Pinecone service for local development
+  pinecone-mock:
+    image: python:3.11-slim
+    command: >
+      sh -c "pip install fastapi uvicorn && 
+             echo 'Mock Pinecone service running on port 8080' && 
+             python -m http.server 8080"
+    ports:
+      - "8080:8080"
+    networks:
+      - mindmate-network
+
+  # Optional: Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - mindmate-network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - mindmate-network
+    profiles:
+      - monitoring
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  mindmate-network:
+    driver: bridge

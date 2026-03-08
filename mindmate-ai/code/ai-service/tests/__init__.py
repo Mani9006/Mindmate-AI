@@ -1,0 +1,3 @@
+"""
+MindMate AI - Test Suite
+"""

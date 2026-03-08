@@ -1,0 +1,41 @@
+# MindMate AI User Profile API Requirements
+
+# FastAPI framework
+fastapi>=0.104.0
+
+# Server
+uvicorn[standard]>=0.24.0
+
+# Data validation
+pydantic>=2.5.0
+pydantic[email]>=2.5.0
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+
+# HTTP client (for tests)
+httpx>=0.25.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# Development
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.7.0
+
+# Optional: Database
+# sqlalchemy>=2.0.0
+# asyncpg>=0.29.0  # For PostgreSQL
+# aiomysql>=0.2.0  # For MySQL
+
+# Optional: Caching
+# redis>=5.0.0
+
+# Optional: Monitoring
+# sentry-sdk>=1.38.0
